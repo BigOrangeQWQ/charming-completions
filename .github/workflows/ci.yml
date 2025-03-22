@@ -1,0 +1,46 @@
+name: Publish Extension
+
+on:
+  push:
+    tags:
+      - "v*"
+  # release:
+  #   types: [published]
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # enable git-cliff
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install git-cliff
+        uses: taiki-e/install-action@git-cliff
+      - name: Generate changelog
+        run: git-cliff -l > changelog-latest.md
+      - name: Build VSIX
+        run: yarn  # install project
+      - name: Publish to Open VSX Registry
+        uses: HaaLeo/publish-vscode-extension@v2
+        id: publishToOpenVSX
+        with:
+          pat: ${{ secrets.OPEN_VSX_TOKEN }}
+      - name: Publish to Visual Studio Marketplace
+        uses: HaaLeo/publish-vscode-extension@v2
+        with:
+          pat: ${{ secrets.VS_MARKETPLACE_TOKEN }}
+          registryUrl: https://marketplace.visualstudio.com
+          extensionFile: ${{ steps.publishToOpenVSX.outputs.vsixPath }}
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ${{ steps.publishToOpenVSX.outputs.vsixPath }}
+          body_path: ./changelog-latest.md
